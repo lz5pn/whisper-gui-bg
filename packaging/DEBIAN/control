@@ -1,0 +1,10 @@
+Package: whisper-gui-bg
+Version: 1.0.1-1
+Section: sound
+Priority: optional
+Architecture: all
+Maintainer: LZ5PN <lz5pn@users.noreply.github.com>
+Depends: python3 (>= 3.10), python3-tk, ffmpeg, python3-venv, python3-pip, git, cmake, build-essential, curl, ca-certificates
+Description: Offline video transcription and Bulgarian SRT translation GUI
+ Tkinter frontend for whisper.cpp and Argos Translate.
+ Run whisper-gui-setup to install CPU-only engines and models.

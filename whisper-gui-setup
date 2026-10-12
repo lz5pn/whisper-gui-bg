@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+trap 'echo "ГРЕШКА: Настройката е прекъсната на ред $LINENO. Проверете съобщението по-горе." >&2' ERR
+if [[ ${EUID} -eq 0 ]]; then echo 'Стартирайте без sudo: whisper-gui-setup' >&2; exit 1; fi
+ROOT="$HOME/.local/share/whisper-gui"
+WHISPER="$ROOT/whisper.cpp"
+ENV="$ROOT/argos-env"
+echo 'Whisper GUI BG — първоначална настройка (необходим е интернет).'
+echo 'Изтеглят се Whisper.cpp, модел small и Argos Translate с CPU PyTorch.'
+read -r -p 'Продължаване? [y/N] ' reply
+case "$reply" in y|Y|yes|YES|д|Д) ;; *) exit 0;; esac
+for cmd in git cmake make c++ python3 ffmpeg; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "Липсва: $cmd. Инсталирайте системните зависимости чрез apt." >&2; exit 1
+  fi
+done
+mkdir -p "$ROOT"
+if [[ ! -d "$WHISPER" ]]; then
+  git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git "$WHISPER"
+elif [[ ! -f "$WHISPER/CMakeLists.txt" ]]; then
+  echo "Папката $WHISPER съществува, но не съдържа Whisper.cpp. Няма да я презаписвам." >&2; exit 1
+fi
+if [[ ! -x "$WHISPER/build/bin/whisper-cli" ]]; then
+  cmake -S "$WHISPER" -B "$WHISPER/build" -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=OFF
+  cmake --build "$WHISPER/build" --config Release -j "$(nproc)"
+else
+  echo 'Whisper.cpp вече е компилиран — пропускам компилацията.'
+fi
+if [[ ! -s "$WHISPER/models/ggml-small.bin" ]]; then
+  ( cd "$WHISPER" && bash models/download-ggml-model.sh small )
+else
+  echo 'Моделът Whisper small вече съществува.'
+fi
+if [[ ! -x "$ENV/bin/python" ]]; then
+  python3 -m venv "$ENV"
+fi
+if ! "$ENV/bin/python" -c 'import torch' >/dev/null 2>&1; then
+  echo 'Инсталирам CPU версия на PyTorch...'
+  "$ENV/bin/python" -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+else
+  echo 'PyTorch вече е наличен.'
+fi
+if ! "$ENV/bin/python" -c 'import argostranslate.translate, argostranslate.package' >/dev/null 2>&1; then
+  "$ENV/bin/python" -m pip install argostranslate
+else
+  echo 'Argos Translate вече е наличен.'
+fi
+"$ENV/bin/python" - <<'PYCODE'
+import argostranslate.package as p
+import argostranslate.translate as t
+
+def installed_pair(src, dst):
+    languages = {x.code: x for x in t.get_installed_languages()}
+    if src not in languages or dst not in languages:
+        return False
+    try:
+        languages[src].get_translation(languages[dst])
+        return True
+    except Exception:
+        return False
+
+missing = [(a,b) for a,b in [('ru','en'), ('en','bg')] if not installed_pair(a,b)]
+if missing:
+    print('Проверявам каталога с езикови модели...')
+    p.update_package_index()
+    packages = p.get_available_packages()
+    for src,dst in missing:
+        pkg = next((x for x in packages if x.from_code == src and x.to_code == dst), None)
+        if pkg is None:
+            raise RuntimeError(f'Няма наличен езиков модел {src} → {dst}.')
+        print(f'Инсталирам {src} → {dst}...')
+        p.install_from_path(pkg.download())
+else:
+    print('Езиковите модели вече са инсталирани.')
+for src,dst in [('ru','en'), ('en','bg')]:
+    if not installed_pair(src,dst):
+        raise RuntimeError(f'Неуспешна проверка на {src} → {dst}')
+print('Проверка на превода: ', t.translate('Hello.', 'en', 'bg'))
+PYCODE
+echo 'Настройката завърши успешно. Стартирайте whisper-gui.'

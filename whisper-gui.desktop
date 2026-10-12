@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Whisper GUI — Subtitles
+Name[bg]=Whisper GUI — Субтитри
+Comment=Offline transcription and Bulgarian translation
+Comment[bg]=Локални субтитри и превод на български
+Exec=whisper-gui
+Terminal=false
+Categories=AudioVideo;AudioVideoEditing;
+Icon=audio-x-generic

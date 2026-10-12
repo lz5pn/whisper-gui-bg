@@ -1,0 +1,21 @@
+# Build files
+build/
+dist/
+
+# Python temporary files
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+argos-env/
+
+# Whisper models
+*.bin
+*.gguf
+
+# Editor files
+*~
+*.swp
